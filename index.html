@@ -11,9 +11,9 @@
     <div class="container">
         <img src="./img/carteira.png.png" alt="Carteira Cripto" class="logo">
         <div class="button-container">
-            <button id="connectWallet">Connectar Wallet</button>
-            <button id="createWallet">Create Wallet</button>
-            <button id="showOptions">Options</button> <!-- Botão "Opções" -->
+            <button id="connectWallet">Conectar Carteira</button>
+            <button id="createWallet">Criar Nova Carteira</button>
+            <button id="showOptions">Opições</button> <!-- Botão "Opções" -->
         </div>
         <p id="accountInfo"></p>
         <p id="privateKeyInfo" class="hidden"></p>
@@ -21,30 +21,30 @@
         <div id="allOptions" class="hidden">
             <div id="optionsSection">
                 <div id="walletActions">
-                    <button id="checkBalance">Balance BNB</button>
-                    <button id="viewTransactions">History</button>
+                    <button id="checkBalance">Saldo BNB</button>
+                    <button id="viewTransactions">Histórico</button>
                 </div>
                 <p id="balanceInfo"></p>
             </div>
 
             <div id="tokenActions">
                 <input type="text" id="tokenAddress" placeholder="Endereço do Token BEP-20">
-                <button id="addToken">Add Token</button>
-                <p>Token List:</p>
+                <button id="addToken">Adicionar Tokens</button>
+                <p>Tokens Adicionados:</p>
                 <ul id="tokenList"></ul>
             </div>
 
             <div id="sendForm" class="form-container">
                 <input type="text" id="recipientAddress" placeholder="Endereço do destinatário">
                 <input type="text" id="amountBNB" placeholder="Quantidade de BNB">
-                <button id="confirmSend">Confirmr</button>
+                <button id="confirmSend">Confirmar</button>
             </div>
 
             <ul id="transactionHistory"></ul>
             <div id="sendTokenSection" class="form-container">
                 <input class="form" type="text" id="tokenRecipient" placeholder="Endereço do destinatário">
                 <input class="form" type="number" id="tokenAmount" placeholder="Quantidade">
-                <button id="sendToken">Send Token</button>
+                <button id="sendToken">Enviar Tokens</button>
             </div>
             <input type="hidden" id="selectedToken">
         </div>
