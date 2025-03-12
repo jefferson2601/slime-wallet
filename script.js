@@ -1,8 +1,9 @@
-const provider = new ethers.providers.Web3Provider(window.ethereum);
+let provider = new ethers.providers.Web3Provider(window.ethereum);
 let signer;
 let userWallet;
 const tokenContracts = {}; // Guardar os contratos adicionados
 const tokenData = {}; // guarda as informações dos tokens adicionados
+
 
 function loadTokens() {
     const storedTokens = localStorage.getItem('tokenData');
@@ -33,22 +34,78 @@ function saveTokens() {
 loadTokens()
 
 document.getElementById("connectWallet").addEventListener("click", async function() {
+    console.log("Botão de conexão clicado");
     if (window.ethereum) {
+        console.log("MetaMask detectada");
         try {
-            await provider.send("eth_requestAccounts", []);
+            console.log("Tentando conectar à carteira...");
+            
+            // Primeiro, verifica se a MetaMask está desbloqueada
+            console.log("Verificando contas...");
+            const accounts = await window.ethereum.request({
+                method: "eth_accounts"
+            });
+            console.log("Contas encontradas:", accounts);
+            
+            if (accounts.length === 0) {
+                console.log("MetaMask está bloqueada ou não tem contas. Solicitando acesso...");
+                const newAccounts = await window.ethereum.request({
+                    method: "eth_requestAccounts"
+                });
+                console.log("Novas contas após solicitação:", newAccounts);
+            }
+
+            // Verifica a rede atual
+            console.log("Solicitando chainId...");
+            const chainId = await window.ethereum.request({
+                method: 'eth_chainId'
+            });
+            console.log("Rede atual:", chainId);
+
+            // Se não estiver na BSC Testnet (97) ou BSC Mainnet (56), pergunta se quer mudar
+            if (chainId !== '0x61' && chainId !== '0x38') {
+                const desejaMudar = confirm("Você não está na rede BSC. Deseja mudar para a BSC Testnet?");
+                if (desejaMudar) {
+                    try {
+                        await switchNetwork(
+                            97,
+                            "https://data-seed-prebsc-1-s1.binance.org:8545/",
+                            "Binance Smart Chain Testnet",
+                            "BNB",
+                            "https://testnet.bscscan.com"
+                        );
+                    } catch (switchError) {
+                        console.error("Erro ao trocar de rede:", switchError);
+                        alert("Não foi possível trocar para a BSC Testnet automaticamente. Por favor, troque manualmente na sua MetaMask.");
+                    }
+                }
+            }
+
+            // Reinicializa o provider após possível troca de rede
+            provider = new ethers.providers.Web3Provider(window.ethereum);
             signer = provider.getSigner();
             const address = await signer.getAddress();
             userWallet = address;
+            
+            console.log("Carteira conectada:", address);
             document.getElementById("accountInfo").innerText = `Conectado: ${address}`;
             document.getElementById("walletActions").classList.remove("hidden");
-            //atualiza a lista quando conectar
-            updateTokenList();
+            
+            // Atualiza a lista quando conectar
+            await updateTokenList();
 
         } catch (error) {
-            console.error("Erro ao conectar:", error);
+            console.error("Erro detalhado ao conectar:", error);
+            if (error.code === 4001) {
+                alert("Você rejeitou a conexão com a carteira.");
+            } else if (error.code === -32002) {
+                alert("Já existe uma solicitação de conexão pendente. Por favor, abra sua MetaMask e aceite a conexão.");
+            } else {
+                alert("Erro ao conectar: " + error.message);
+            }
         }
     } else {
-        alert("MetaMask não detectado! Instale e tente novamente.");
+        alert("MetaMask não detectado! Por favor, instale a extensão MetaMask e tente novamente.");
     }
 });
 
@@ -221,24 +278,27 @@ async function addToken() {
 
     try {
         console.log("Verificando rede conectada...");
-        const provider = new ethers.providers.Web3Provider(window.ethereum);
+        let provider = new ethers.providers.Web3Provider(window.ethereum);
         let signer = provider.getSigner();
         const network = await provider.getNetwork();
         console.log("Rede conectada:", network.name, network.chainId);
 
-        // **Caso o token esteja em outra rede, trocar automaticamente**
+        // Detectar rede do token
         const tokenNetwork = await detectTokenNetwork(tokenAddress);
         if (network.chainId !== tokenNetwork.chainId) {
             console.log(`Token pertence à rede ${tokenNetwork.chainName}. Trocando...`);
             await switchNetwork(tokenNetwork.chainId, tokenNetwork.rpcUrl, tokenNetwork.chainName, tokenNetwork.currencySymbol, tokenNetwork.blockExplorerUrl);
-
+            
+            // Reinicializar provider e signer após a troca de rede
             console.log("Reconectando à nova rede...");
-            const newProvider = new ethers.providers.Web3Provider(window.ethereum);
-            signer = newProvider.getSigner();
+            // Pequeno delay para garantir que a rede foi trocada
+            await new Promise(resolve => setTimeout(resolve, 1000));
+            provider = new ethers.providers.Web3Provider(window.ethereum);
+            signer = provider.getSigner();
             console.log("Nova rede conectada com sucesso.");
         }
 
-        // **Criando o contrato do token**
+        // Criando o contrato do token
         console.log("Criando contrato...");
         const abi = [
             "function symbol() view returns (string)",
@@ -249,9 +309,10 @@ async function addToken() {
         const contract = new ethers.Contract(tokenAddress, abi, signer);
         console.log("Contrato criado.");
 
-        // **Testando chamada ao contrato**
+        // Testando chamadas ao contrato
         console.log("Testando balanceOf()...");
-        const balance = await contract.balanceOf(await signer.getAddress());
+        const userAddress = await signer.getAddress();
+        const balance = await contract.balanceOf(userAddress);
         console.log("Balance:", balance.toString());
 
         console.log("Testando decimals()...");
@@ -262,23 +323,29 @@ async function addToken() {
         const symbol = await contract.symbol();
         console.log(`Símbolo do Token: ${symbol}`);
 
-        // **Verificar se o token já foi adicionado**
+        // Verificar se o token já foi adicionado
         if (tokenContracts[symbol]) {
             alert("Este token já foi adicionado!");
             return;
         }
-            tokenData[symbol] = {
+
+        // Atualizar variáveis globais
+        tokenData[symbol] = {
             address: tokenAddress,
             decimals: decimals
         };
         saveTokens();
 
+        // Atualizar a interface
         document.getElementById("tokenAddress").value = "";
         tokenActionsDiv.classList.remove('hidden');
-        updateTokenList();
+        
+        // Atualizar provider global
+        window.provider = provider;
+        window.signer = signer;
+        
+        await updateTokenList();
         alert("Token adicionado com sucesso!");
-
-
 
     } catch (error) {
         console.error("Erro ao adicionar token:", error);
